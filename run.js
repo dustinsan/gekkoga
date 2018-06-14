@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 const Ga = require('./');
 const fs = require('fs');
 
