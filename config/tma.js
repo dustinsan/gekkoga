@@ -4,9 +4,9 @@ const config = {
 	stratName: 'TMA',
 	gekkoConfig: {
 		watch: {
-			exchange: 'poloniex',
-			currency: 'USDT',
-			asset: 'XMR',
+			exchange: 'bittrex',
+			currency: 'BTC',
+			asset: 'ZCL',
 		},
 
 		daterange: 'scan',
@@ -61,7 +61,7 @@ const config = {
 	getProperties: () => ({
 
 		historySize: randomExt.integer(100, 20),
-		candleSize: randomExt.integer(960, 1),
+		candleSize: 1, //randomExt.integer(960, 1),
 
 		short: randomExt.integer(50,1),
 		medium: randomExt.integer(75, 25),

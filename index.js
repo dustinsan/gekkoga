@@ -6,8 +6,7 @@ const { some } = require('bluebird');
 const fs = require('fs-extra');
 const flat = require('flat');
 const util = require('util');
-const mongo = require('mongodb').MongoClient;
-
+const storeResults = require('./storeResults'); // line added by d schultz
 
 class Ga {
 
@@ -65,8 +64,8 @@ class Ga {
 				candleProps: ['close', 'start'],
 				indicatorResults: false,
 				report: true,
-				roundtrips: true,
-				trades: false,
+				roundtrips: false,
+				trades: true,
 			}
 		};
 
@@ -76,18 +75,18 @@ class Ga {
 	// Checks for, and if present loads old .json parameters
 	async loadBreakPoint() {
 
-		console.log('this.configName: ', this.configName);
-		const fileName = `./results/${this.configName}-${this.currency}_${this.asset}.json`;
-		const exists = fs.existsSync(fileName);
-
-		if(exists){
-
-			console.log('Previous config found, loading...');
-			return fs.readFile(fileName, 'utf8').then(JSON.parse);
-
-		}
-
 		return false;
+		// const fileName = `./results/${this.configName}-${this.currency}_${this.asset}.json`;
+		// const exists = fs.existsSync(fileName);
+
+		// if(exists){
+
+		// 	console.log('Previous config found, loading...');
+		// 	return fs.readFile(fileName, 'utf8').then(JSON.parse);
+
+		// }
+
+		// return false;
 
 	}
 
@@ -318,6 +317,7 @@ class Ga {
 
 			const outconfig = this.getConfig(data);
 			let body;
+
 			try {
 				body = await rp.post({
 					url: `${this.apiUrl}/api/backtest`,
@@ -333,7 +333,7 @@ class Ga {
 
 			// These properties will be outputted every epoch, remove property if not needed
 			const properties = ['balance', 'profit', 'sharpe', 'market', 'relativeProfit', 'yearlyProfit', 'relativeYearlyProfit', 'startPrice', 'endPrice', 'trades', 'startTime', 'endTime'];
-			const { report, roundtrips } = body;
+			const { report, trades } = body;
 
 			let result = { profit: 0, metrics: false };
 
@@ -354,9 +354,10 @@ class Ga {
 					profit: report.profit,
 					sharpe: report.sharpe,
 					metrics: picked,
-					roundtrips,
-					startTime: report.startTime,
-					endTime: report.endTime,
+					trades, // added by d schultz
+					config: outconfig.gekkoConfig[this.stratName], // added by d schultz
+					startTime: report.startTime, // added by d schultz
+					endTime: report.endTime, // added by d schultz
 				};
 			}
 
@@ -382,14 +383,14 @@ class Ga {
 				profits.push(results[i]['profit']);
 				sharpes.push(results[i]['sharpe']);
 				otherMetrics.push(results[i]['metrics']);
-				rounds.push(results[i]['roundtrips']);
-				startTimes.push(new Date(results[i]['startTime']));
-				endTimes.push(new Date(results[i]['endTime']));
+				// rounds.push(results[i]['roundtrips']);
+				// startTimes.push(new Date(results[i]['startTime']));
+				// endTimes.push(new Date(results[i]['endTime']));
 			}
 
 		}
 
-		return { scores, profits, sharpes, otherMetrics, roundtrips: rounds, startTimes, endTimes };
+		return { scores, profits, sharpes, otherMetrics, results}; // line edited by d schultz
 
 	}
 
@@ -444,55 +445,57 @@ class Ga {
 
 			const startTime = new Date().getTime();
 			const res = await this.fitnessApi(population);
+			storeResults(res.results, {
+				strategy: this.stratName,
+				asset: this.asset,
+				currency: this.currency,
+			}); // line added by d schultz
 
 			let populationScores = res.scores,
 				populationProfits = res.profits,
 				populationSharpes = res.sharpes,
-				otherPopulationMetrics = res.otherMetrics,
-				roundtrips = res.roundtrips,
-				startTimes = res.startTimes,
-				endTimes = res.endTimes;
-				console.log('roundtrips: ', roundtrips);
+				otherPopulationMetrics = res.otherMetrics;
 
-			let storedResults = [];
-			let storedRoundtrips = [];
+			// let storedResults = [];
+			// let storedRoundtrips = [];
 
-			for (let i = 0; i < populationProfits.length; i++) {
-				console.log('roundtrips.length: ', roundtrips.length);
-				if (populationScores[i] || populationSharpes[i] || populationScores[i] || roundtrips[i]){
-					storedResults.push({
-						strategy: this.stratName,
-						asset: this.asset,
-						currency: this.currency,
-						params: population[i],
-						score: populationScores[i],
-						sharpe: populationSharpes[i],
-						profit: populationScores[i],
-						trades: roundtrips.length,
-						metrics: {
-							...otherPopulationMetrics[i],
-							startTime: new Date(otherPopulationMetrics[i].startTime).getTime(),
-							endTime: new Date(otherPopulationMetrics[i].endTime).getTime(),
-						},
-						roundtrips: roundtrips[i].map(el => ({
-							...el,
-							entryAt: new Date(el.entryAt).getTime(),
-							exitAt: new Date(el.exitAt).getTime(),
-						})),
-					});
-				}
-			}
+			// for (let i = 0; i < populationProfits.length; i++) {
+			// 	console.log('roundtrips.length: ', roundtrips.length);
+			// 	if (populationScores[i] || populationSharpes[i] || populationScores[i] || roundtrips[i]){
+			// 		storedResults.push({
+			// 			strategy: this.stratName,
+			// 			asset: this.asset,
+			// 			currency: this.currency,
+			// 			params: population[i],
+			// 			score: populationScores[i],
+			// 			sharpe: populationSharpes[i],
+			// 			profit: populationScores[i],
+			// 			trades: roundtrips.length,
+			// 			metrics: {
+			// 				...otherPopulationMetrics[i],
+			// 				startTime: new Date(otherPopulationMetrics[i].startTime).getTime(),
+			// 				endTime: new Date(otherPopulationMetrics[i].endTime).getTime(),
+			// 			},
+			// 			roundtrips: roundtrips[i].map(el => ({
+			// 				...el,
+			// 				entryAt: new Date(el.entryAt).getTime(),
+			// 				exitAt: new Date(el.exitAt).getTime(),
+			// 			})),
+			// 		});
+			// 	}
+			// }
 
-			mongo.connect('mongodb://localhost:27017', (err, client) => {
-				if (!err) {
-					let db = client.db('gekkoga');
-					let resultsCol = db.collection('results');
-					resultsCol.insert(storedResults);
-				} else {
-					console.error(err);
-					process.exit(1);
-				}
-			});
+
+			// mongo.connect('mongodb://localhost:27017', (err, client) => {
+			// 	if (!err) {
+			// 		let db = client.db('gekkoga');
+			// 		let resultsCol = db.collection('results');
+			// 		resultsCol.insert(storedResults);
+			// 	} else {
+			// 		console.error(err);
+			// 		process.exit(1);
+			// 	}
+			// });
 
 			let endTime = new Date().getTime();
 			epochNumber++;
@@ -586,30 +589,33 @@ class Ga {
 
 			// store in json
 			const json = JSON.stringify(allTimeMaximum);
-			await fs.writeFile(`./results/${this.configName}-${this.currency}_${this.asset}.json`, json, 'utf8').catch(err => console.log(err) );
+			// let fileName = `./results/${this.configName}-${this.currency}_${this.asset}.json`;
+			// if (json.length) {
+			// 	await fs.writeFile(fileName, json, 'utf8').catch(err => console.log(err));
+			// }
 
-			if (this.sendemail && this.notifynewhigh) {
-				var transporter = nodemailer.createTransport({
-					service: this.senderservice,
-					auth: {
-						user: this.sender,
-						pass: this.senderpass
-					}
-				});
-				var mailOptions = {
-					from: this.sender,
-					to: this.receiver,
-					subject: `Profit: ${allTimeMaximum.profit} ${this.currency}`,
-					text: json
-				};
-				transporter.sendMail(mailOptions, function(error, info){
-					if (error) {
-						console.log(error);
-					} else {
-						console.log('Email sent: ' + info.response);
-					}
-				});
-			}
+			// if (this.sendemail && this.notifynewhigh) {
+			// 	var transporter = nodemailer.createTransport({
+			// 		service: this.senderservice,
+			// 		auth: {
+			// 			user: this.sender,
+			// 			pass: this.senderpass
+			// 		}
+			// 	});
+			// 	var mailOptions = {
+			// 		from: this.sender,
+			// 		to: this.receiver,
+			// 		subject: `Profit: ${allTimeMaximum.profit} ${this.currency}`,
+			// 		text: json
+			// 	};
+			// 	transporter.sendMail(mailOptions, function(error, info){
+			// 		if (error) {
+			// 			console.log(error);
+			// 		} else {
+			// 			console.log('Email sent: ' + info.response);
+			// 		}
+			// 	});
+			// }
 
 
 			population = newPopulation;
@@ -619,6 +625,8 @@ class Ga {
 		console.log(`Finished!
 	All time maximum:
 	${allTimeMaximum}`);
+		connection.end();
+		process.exit();
 
 	}
 

@@ -1,7 +1,7 @@
 # gekkoga
 Genetic Algorithm for solving optimization of trading strategies using Gekko
 ## Installation
-    node >= 7.x.x required!
+	node >= 7.x.x required!
 1) git clone https://github.com/gekkowarez/gekkoga.git
 2) cd gekkoga
 3) npm install
